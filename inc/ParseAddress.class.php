@@ -17,135 +17,256 @@
  * 
  * Right now the function is dependent on a list of cities to validate that 
  * we are parsing properly.
+ *
+ * Usage:
+ * 		$pa = new ParseAddress;
+ *      // because of conflict between state codes and country codes, set the country
+ *		$pa->set("country","US");
+ *		$pa->set("default_state","CA",true);
+ *
+ *		$rtn_addr = $pa->parseAddress($addr);
+ *
+ *		if ($rtn_addr['errors']) { handle errors}	
+ *		if ($rtn_addr['warnings']) { handle warnings}	
+ *		if ($rtn_addr['conds']) { handle conditional}		
  * 
  */
 class ParseAddress extends ObjectBase
 {
 	/**
-	 * 
+	 * default country if one is not provided 
 	 * 
 	 * @var string
 	 */
-	var $postal_code = null;
+	public $default_country = 'USA';
+	/**
+	 * default state if one is not provided 
+	 * 
+	 * @var string
+	 */
+	public $default_state = null;
 	
 	/**
-	 * 
+	 * postal code 
 	 * 
 	 * @var string
 	 */
-	var $country = null;
+	public $postal_code = null;
 	
 	/**
-	 * 
+	 * country code
 	 * 
 	 * @var string
 	 */
-	public static $state = null;
+	public $country = null;
+	
+	/**
+	 * state code
+	 * 
+	 * @var string
+	 */
+	public $state = null;
 	
 	/**
 	 *  city value
 	 * 
 	 * @var string
 	 */
-	var $city = null;
+	public $city = null;
 	
 	/**
 	 *  array used to pase city - used with multi word city names
 	 * 
 	 * @var string
 	 */
-	public static $city_arr = array();
+	private $city_arr = array();
 	
 	/**
 	 * full street address
 	 * 
 	 * @var string
 	 */
-	var $street_addr = null;
+	public $street_addr = null;
 	
 	/**
 	 * 
 	 * 
 	 * @var string
 	 */
-	var $subpremise = null;
+	public $subpremise = null;
 	
 	/**
 	 * 
 	 * 
 	 * @var string
 	 */
-	var $street_type = null;
+	public $street_type = null;
 	
 	/**
 	 * 
 	 * 
 	 * @var string
 	 */
-	var $direction = null;
+	public $direction = null;
 	
 	/**
 	 * 
 	 * 
 	 * @var string
 	 */
-	var $street_number = null;
+	public $street_number = null;
 	
 	/**
 	 * 
 	 * 
 	 * @var string
 	 */
-	var $street_name = null;
+	public $street_name = null;
 	
 	/**
 	 * Property contains the full raw address
 	 * 
 	 * @var string
 	 */
-	var $_original_address = null;
+	public $_original_address = null;
 	
 	/**
 	 * Property contains the clean address
 	 * 
 	 * @var string
 	 */
-	var $_clean_address = null;
+	public $_clean_address = null;
 	
 	/**
 	 * Property contains the method
 	 * 
 	 * @var string
 	 */
-	var $_method = null;
+	private $_method = null;
 	
 	/**
 	 * 
 	 * 
 	 * @var object
 	 */
-	var $_arrays = null;
+	private $_arrays = null;
+	/**
+	 * country table for lookup by code
+	 * 
+	 * @var object
+	 */
+	private $_countries = null;
+	/**
+	 * country table for lookup by name
+	 * 
+	 * @var object
+	 */
+	private $_countries_reversed = null;
+	/**
+	 * state table for lookup by code
+	 * 
+	 * @var object
+	 */
+	private $_states = null;
+	/**
+	 * state table for looup by name
+	 * 
+	 * @var object
+	 */
+	private $_states_reversed = null;
+	/**
+	 * city/state lookup
+	 * 
+	 * @var object
+	 */
+	private $_cities = null;
+	/**
+	 * street table for lookup by code
+	 * 
+	 * @var object
+	 */
+	private $_streets = null;
+	/**
+	 * street table for looup by name
+	 * 
+	 * @var object
+	 */
+	private $_streets_reversed = null;
+	/**
+	 * directions table for lookup by code
+	 * 
+	 * @var object
+	 */
+	private $_directions = null;
+	/**
+	 * directions table for looup by name
+	 * 
+	 * @var object
+	 */
+	private $_directions_reversed = null;
+	 
+	 /**
+	 * if true, then google is used to parse address if other routines fail.
+	 * 
+	 * @var bool 
+	 */
+	public $parse_google = false;
 	
 	/**
 	 * if true, print messages through processing.
 	 * 
 	 * @var bool 
 	 */
-	var $_debug = false;
+	private $_debug = false;
 	
 	/**
 	 * Constructor.
 	 * 
 	 * Method is responsible for constructing the object and starting the process
 	 * 
-	 * @param string|array $address
+	 * @param bool   debug
 	 * @return void
 	 */
-	public function __construct( $address = null,$debug=false )
+	public function __construct( $debug=false )
 	{
 		//initializing object properties
 		$this->_debug = $debug;
 		
+		//load edit tables
+		$this->_countries = AddressHelper::getArray('_countries');
+		$this->_countries_reversed = AddressHelper::getReverseArray('_countries');
+		$this->_states = AddressHelper::getArray('_states');
+		$this->_states_reversed = AddressHelper::getReverseArray( '_states' );
+		$this->_cities = AddressHelper::getArray('_cities');
+		
+		$this->_streets = AddressHelper::getArray('_streets');
+		$this->_streets_reversed = AddressHelper::getReverseArray( '_streets' );
+		$this->_directions = AddressHelper::getArray('_directions');
+		$this->_directions_reversed = AddressHelper::getReverseArray( '_directions' );
+		
+//		$this->_original_address = $address;
+//		$this->_clean_address = $this->clean( $address );
+//		
+//		if ($this->_debug) {
+//			echo "<br><br>--- entering ParseAddress--- <br>";
+//			echo "<br />  orig addr: ".$address;
+//			echo "<br /> clean addr: ".$this->_clean_address;
+//		}
+//		
+//		
+//		$this->controller();
+	}
+	/**
+	 * Parse the address 
+	 * 
+	 * Method is here to determine if the object properties have values
+	 * if they don't then that's a possible invalid address
+	 * 
+	 * @param string|array $address
+	 * @return array
+	 */
+	public function parseAddress( $address = null )
+	{
 		$this->_original_address = $address;
 		$this->_clean_address = $this->clean( $address );
 		
@@ -157,6 +278,29 @@ class ParseAddress extends ObjectBase
 		
 		$this->initialize();
 		$this->controller();
+		$addr_arr = $this->toArray();
+		//set error messages
+		if ($this->errorMsgs) {
+			foreach ($this->errorMsgs as $key => $value) {
+				if ($key = "w") {
+					$_warnings[] = $value[1];
+				} elseif ($key = "e") {
+					$_errors[] = $value[1];
+				} else {
+					$_info = $value[1];
+				}
+			}
+		}
+		if (!is_null($_errors)) {
+			$addr_arr["errors"] = $_errors;
+		}
+		if (!is_null($_warnings)) {
+			$addr_arr["warnings"] = $_warnings;
+		}
+		if (!is_null($_info)) {
+			$addr_arr["info"] = $_conditional;
+		}
+		return $addr_arr;
 	}
 	
 	/**
@@ -237,6 +381,19 @@ class ParseAddress extends ObjectBase
 	}
 	
 	/**
+	 * Initialize.
+	 * 
+	 * Method is responsible for preparing the work fields
+	 * 
+	 * @return void
+	 */
+	protected function initialize()
+	{
+		$this->errorMsgs = null;
+		$this->city_array = null;
+	}
+	
+	/**
 	 * Controller.
 	 * 
 	 * Method is responsible for starting the process of parsing the given
@@ -253,12 +410,14 @@ class ParseAddress extends ObjectBase
 		//attempting to parse this address ourselves
 		if ($this->parseString()) 
 			return true;
-		return false;              //stop the google search
+
 		//letting google have the last shot at this
 		//Google has a 24 hour quota of around a few hundred requests
 		//this is why we only ask them if we have to
-		if ($this->parseGoogle()) 
-			return true;
+		if ($parse_google) {
+			if ($this->parseGoogle()) 
+				return true;
+		}
 		
 		return false;
 	}
@@ -272,7 +431,7 @@ class ParseAddress extends ObjectBase
 	 * @param $part
 	 * @return string
 	 */
-	public static function clean( $string = null )
+	public function clean( $string = null )
 	{
 		//reasons to return empty
 		if (is_array($string)) return $string;
@@ -320,19 +479,7 @@ class ParseAddress extends ObjectBase
 		return $addr;
 	}
 	
-	/**
-	 * Initialize.
-	 * 
-	 * Method is responsible for preparing the object
-	 * 
-	 * @return void
-	 */
-	protected function initialize()
-	{
-		//loading resources
-		#s_autoload('addresshelper');
-	}
-	
+		
 	/**
 	 * Is this part a city
 	 * 
@@ -341,34 +488,37 @@ class ParseAddress extends ObjectBase
 	 * 
 	 * @param string $part
 	 */
-	public static function isCity( $string = null)
+	public function isCity( $string = null)
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
-		if (is_null(self::$state)) return false;
+		if (is_null($this->state)) return false;
 		if (strlen(trim($string)) < 2) return false;
 		
 		//initializing variables
-		$_cities = AddressHelper::getArray('_cities');
 		$string = strtoupper(trim($string));
-		$temp = self::clean($string);
+		$temp = $this->clean($string);
 		
-		if ( in_array($temp, $_cities[self::$state])) {
-			$key = array_search($temp, $_cities[self::$state]);
+		if ( in_array($temp, $this->_cities[$this->state])) {
+			$key = array_search($temp, $this->_cities[$this->state]);
 			return $string;
 		} else {
 			// if city_arr is set, then check for multi-word city name
-			if (!empty(self::$city_arr)) {			
-				$key = array_search($temp, self::$city_arr);
+			if ($this->_debug) {echo "<br>isCity chk for multi-word city ";}
+			if (!empty($this->city_arr)) {			
+				$key = array_search($temp, $this->city_arr);
+				if ($this->_debug) {echo "city loop: ".$key.'-'.$temp.'-';}
 				// loop through city arr, build city name and check it
 				for ($i=1;$i<$key;$i++) {
-					$city_part = strtoupper(trim(self::$city_arr[$key - $i]));
+					if ($this->_debug) {echo "<br>isCity chk for multi-word city ";}
+					$city_part = strtoupper(trim($this->city_arr[$key - $i]));
 					$temp = $city_part." ".$temp;
 					//unset used parts of city
-					if ( in_array($temp, $_cities[self::$state])) {
+					if ( in_array($temp, $this->_cities[$this->state])) {
 						$x=$key-$i;
 						for ($k=$x;$k<=$key;$k++) {
-							unset(self::$city_arr[$k]);
+							echo "<br>in isCity, unset city_arr ".$k;
+							unset($this->city_arr[$k]);
 						}
 						return $temp;
 					}
@@ -389,22 +539,30 @@ class ParseAddress extends ObjectBase
 	 * @param string $string
 	 * @return string|false
 	 */
-	public static function isCountry( $string = null )
+	public function isCountry( $string = null )
 	{
+		if ($this->_debug) {echo "<br>isCountry test - ".$string;}
 		//reasons to fail
 		if (is_null($string)) return false;
 		if (strlen(trim($string)) < 1) return false;
 		
 		//initializing variables
 		$string = strtoupper(trim($string));
-		$temp = self::clean($string);
-		
-		$_countries = AddressHelper::getArray('_countries');
-		$_countries_reversed = AddressHelper::getReverseArray('_countries');
-		
+		$temp = $this->clean($string);
+
 		//reasons to believe that this is a country
-		if (isset($_countries[$temp])) return $string;
-		if (isset($_countries_reversed[$temp]))return $string;
+		if (isset($this->_countries[$temp])) return $string;
+		if (isset($this->_countries_reversed[$temp]))return $string;
+		
+		//set default country
+		if (is_null($this->country)) {
+			if (is_null($this->default_country)) { 
+				$this->errorMsgs[] = array("e","county not found - default country not set ");
+			} else {
+				$this->country = $this->default_country;
+				$this->errorMsgs[] = array("w","country not found - using default ".$this->default_country);
+			}
+		}
 		
 		return false;
 	}
@@ -418,7 +576,7 @@ class ParseAddress extends ObjectBase
 	 * @param string $part
 	 * @return string|false
 	 */
-	public static function isDirection( $string = null )
+	public function isDirection( $string = null )
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
@@ -426,14 +584,11 @@ class ParseAddress extends ObjectBase
 		
 		//initializing variables
 		$string = strtoupper(trim($string));
-		$temp = str_replace('.', '', self::clean($string));
-		
-		$_directions = AddressHelper::getArray('_directions');
-		$_directions_reversed = AddressHelper::getReverseArray( '_directions' );
+		$temp = str_replace('.', '', $this->clean($string));
 		
 		//reasons to believe that this is a direction
-		if (isset($_directions[$temp])) return $string;
-		if (isset($_directions_reversed[$temp]))return $string;
+		if (isset($this->_directions[$temp])) return $string;
+		if (isset($this->_directions_reversed[$temp]))return $string;
 		
 		return false;
 	}
@@ -447,7 +602,7 @@ class ParseAddress extends ObjectBase
 	 * @param string $part
 	 * @return string|false
 	 */
-	public static function isPostalCode( $string = null )
+	public function isPostalCode( $string = null )
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
@@ -481,7 +636,7 @@ class ParseAddress extends ObjectBase
 	 * @param string $part
 	 * @return string|false
 	 */
-	public static function isState( $string = null )
+	public function isState( $string = null )
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
@@ -489,16 +644,25 @@ class ParseAddress extends ObjectBase
 		
 		//initializing variables
 		$string = strtoupper(trim($string));
-		$string = self::clean($string);
+		$string = $this->clean($string);
 		
 		$temp = $string;
 		
-		$_states = AddressHelper::getArray('_states');
-		$_states_reversed = AddressHelper::getReverseArray( '_states' );
+		
 		
 		//reasons to believe that this is a state
-		if (isset($_states[$temp])) return $string;
-		if (isset($_states_reversed[$temp]))return $string;
+		if (isset($this->_states[$temp])) return $string;
+		if (isset($this->_states_reversed[$temp]))return $string;
+		
+		//set to default state
+		if (is_null($this->state)) {
+			if (is_null($this->default_state)) { 
+				$this->errorMsgs[] = array("e","state not found - default state not set ");
+			} else {
+				$this->state = $this->default_state;
+				$this->errorMsgs[] = array("w","state not found - using default ".$this->default_state);
+			}
+		}
 		
 		return false;
 	}
@@ -512,15 +676,15 @@ class ParseAddress extends ObjectBase
 	 * @param string $part
 	 * @return string|false
 	 */
-	public static function isStreetName( $string = null )
+	public function isStreetName( $string = null )
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
 		if (strlen(trim($string)) < 1) return false;
 		
 		//initializing variables
-		$string = strtoupper(self::clean($string));
-		$string = self::NumbersToWords($string);
+		$string = strtoupper($this->clean($string));
+		$string = $this->NumbersToWords($string);
 		
 		return $string;
 	}
@@ -533,7 +697,7 @@ class ParseAddress extends ObjectBase
 	 * 
 	 * @param string $part
 	 */
-	public static function isStreetNumber( $string = null )
+	public function isStreetNumber( $string = null )
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
@@ -558,7 +722,7 @@ class ParseAddress extends ObjectBase
 	 * 
 	 * @param string $part
 	 */
-	public static function isStreetType( $string = null )
+	public function isStreetType( $string = null )
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
@@ -566,14 +730,11 @@ class ParseAddress extends ObjectBase
 		
 		//initializing variables
 		$string = strtoupper(trim($string));
-		$temp = self::clean($string);
-		
-		$_streets = AddressHelper::getArray('_streets');
-		$_streets_reversed = AddressHelper::getReverseArray( '_streets' );
+		$temp = $this->clean($string);
 		
 		//reasons to believe that this is a country
-		if (isset($_streets[$temp])) return $string;
-		if (isset($_streets_reversed[$temp]))return $string;
+		if (isset($this->_streets[$temp])) return $string;
+		if (isset($this->_streets_reversed[$temp]))return $string;
 		
 		return false;
 	}
@@ -587,7 +748,7 @@ class ParseAddress extends ObjectBase
 	 * @param string $part
 	 * @return string|false
 	 */
-	public static function isSubPremise( $string = null )
+	public function isSubPremise( $string = null )
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
@@ -638,7 +799,7 @@ class ParseAddress extends ObjectBase
 	 * @param string $string
 	 * @return boolean
 	 */
-	public static function NumbersToWords( $string = null )
+	public function NumbersToWords( $string = null )
 	{
 		//reasons to return
 		if ( is_null($string) ) return false;
@@ -748,28 +909,28 @@ class ParseAddress extends ObjectBase
 		$string = $this->clean( trim($this->_clean_address) );
 		$parts = explode(" ", $string);
 		$leftovers = "";
-		$max_size = sizeof($parts);
+		$max_size = sizeof($parts)-1;
+		echo"<br />parts:<pre>";
+		print_r($parts);
+		echo "</pre>";
 		
 		//reasons to return
 		if (!isset($parts[1])) return false;
 		
 		//we're reversing the array and disecting it backwords
-		foreach (array_reverse($parts, true) as $key => $part)
+		foreach (array_reverse($parts, true) as   $key => $part)
 		{
-			//POSTAL CODE
-			if ($this->isPostalCode( $part) 
-				&& $this->parseSet("postal_code", $part))
-			{
-				if ($this->_debug) {echo "<br>setting postal code - ".$part;}
-				unset($parts[$key]);
-				continue;
-			}
+			echo"<br />loop parts:<pre>";
+			print_r($parts);
+			echo "</pre>";
+			
+			if ($this->_debug) {echo "<br>parsing: ".$key.' - '.$part.'  ('.$max_size.')';}
 			
 			//COUNTRY
 			// eliminate if not last item
-			if ($this->isCountry( $part) 
-//				&& !$this->isDirection($part)
-				&& ($key == max_size)
+			if (is_null($this->country)
+				&& $this->isCountry( $part) 
+				&& ($key == $max_size)
 				&& $this->parseSet("country", $part))
 			{
 				if ($this->_debug) {echo "<br>setting country - ".$part;}
@@ -777,8 +938,20 @@ class ParseAddress extends ObjectBase
 				continue;
 			}
 			
+			//POSTAL CODE
+			if (is_null($this->postal_code)
+				&& $this->isPostalCode( $part) 
+				&& $this->parseSet("postal_code", $part))
+			{
+				if ($this->_debug) {echo "<br>setting postal code - ".$part;}
+				unset($parts[$key]);
+				continue;
+			}
+			
 			//STATE
-			if ($this->isState( $part) 
+			if (is_null($this->state)
+				&& ($key >= $max_size-3)
+				&& $this->isState( $part) 
 				&& $this->parseSet("state", $part))
 			{
 				if ($this->_debug) {echo "<br>setting state - ".$part;}
@@ -787,31 +960,51 @@ class ParseAddress extends ObjectBase
 			}
 			
 			//CITY
-			if ($this->isCity( $part, $this->state) 
-				&& $this->parseSet("city", $part))
-			{
-				if ($this->_debug) {echo "<br>setting city - ".$part;}
-				unset($parts[$key]);
-				continue;
-			}
+			//load parts to city array for multi-word city names
+			$this->city_arr = $parts;
+			if (is_null($this->city)){
+				$_citynm = $this->isCity( $part, $this->state); 
+				if ($_citynm) {
+					$this->parseSet("city", $_citynm);
 			
+					if ($this->_debug) {echo "<br>unsetting city - ".$_citynm.'-'.$part.'-'.$this->city;}
+					// if single word city, unset part, if multi word city, use city_arr
+					if ($part == $this->city) {
+						echo "<br>**unset parts-key";
+						unset($parts[$key]);
+					} else {
+						echo "<br>**reset parts"; print_r($this->city_arr);
+						$parts = $this->city_arr;
+						reset($parts);
+					}
+					continue;
+				}
+				
+			}
+			echo "<br>";
+			print_r($parts);
+			echo "<br>leftover part: ".$part;
 			//any remains in reverse order
-			$leftovers = $part." ".$leftovers;
+			//$leftovers = $part." ".$leftovers;
 		}
 		
 		reset($parts);
+		$leftovers = implode(" ",$parts);
 		
 		if ($this->_debug) { 
 			echo "<br> leftovers: ".$leftovers;
-			echo "<br>whats left: ".$this->getWhatsLeft();
+			#echo "<br>whats left: ".$this->getWhatsLeft();
 			echo "<br /> parts array <pre>";
 			print_r( $parts);
 			echo "</pre>";
 		}
 		
+		// set street address with 
+		$this->street_addr = ucwords(strtolower($leftovers));
+		return true;
 		//STREET PARSING
-		if ($this->parseStreet( $this->getWhatsLeft() ))
-			return true;
+		//if ($this->parseStreet( $this->getWhatsLeft() ))
+		//	return true;
 		return false;
 	}
 	
@@ -939,10 +1132,10 @@ class ParseAddress extends ObjectBase
 		if ($property == "city"){echo "<br>clean city - method is ".$method;}
 		//RETURN if it's already set
 		if ($this->fireMethod( $method, $this->$property )) return false;
-		if ($property == "city"){echo "<br>not set city";}
+		if ($property == "city"){echo "<br>not set city-".$value;}
 		//SET IT
 		if (!$this->set( $property, $value )) return false;
-		if ($property == "city"){echo "<br>set city";}
+		if ($property == "city"){echo "<br>set city-".$value;}
 		return true;
 	}
 	
@@ -984,7 +1177,11 @@ class ParseAddress extends ObjectBase
 		//if it's not already valid
 		if (!$force && !($valid = $this->fireMethod( $method, $value )) ) return false;
 		
-		$this->$property = $valid;
+		if ($force) {
+			$this->$property = $value;
+		} else {
+			$this->$property = $valid;
+		}
 		return true;
 	}
 	
@@ -996,7 +1193,7 @@ class ParseAddress extends ObjectBase
 	 * @param string $string
 	 * @return string
 	 */
-	public static function Spellchecker( $string = null )
+	public function Spellchecker( $string = null )
 	{
 		return SpellChecker::String($string);
 	}

@@ -242,7 +242,7 @@ class AddressHelper extends ObjectBase
 	 * 
 	 * @var array
 	 */
-	var $_countries = array('UNITED STATES'=>'USA','AFGHANISTAN'=>'AF','ALBANIA'=>'AL','ALGERIA'=>'DZ',
+	var $_countries = array('UNITED STATES'=>'USA','UNITED STATES'=>'US ','AFGHANISTAN'=>'AF','ALBANIA'=>'AL','ALGERIA'=>'DZ',
 	'AMERICAN SAMOA'=>'AS','ANDORRA'=>'AD','ANGOLA'=>'AO','ANGUILLA'=>'AI','ANTARCTICA'=>'AQ',
 	'ANTIGUA AND BARBUDA'=>'AG','ARGENTINA'=>'AR','ARMENIA'=>'AM','ARUBA'=>'AW',
 	'AUSTRALIA'=>'AU','AUSTRIA'=>'AT','AZERBAIJAN'=>'AZ','BAHAMAS'=>'BS','BAHRAIN'=>'BH',
