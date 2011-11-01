@@ -9,6 +9,7 @@ There are several changes to this branch which are in progress but you might fin
 Changes
 ---------
 * Usage of the class has changed:
+	
 	$pa = new ParseAddress;
 	// because of conflict between state codes and country codes, set the country
 	$pa->set("country","US");
