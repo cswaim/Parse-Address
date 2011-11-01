@@ -8,6 +8,18 @@ There are several changes to this branch which are in progress but you might fin
 
 Changes
 ---------
-* Several validations have been changed to static call to allow them to be invoked without instantiating the class
-* The city lookup requires the state be passed to the lookup routine. The static call addresses this.
+* Usage of the class has changed:
+	$pa = new ParseAddress;
+	// because of conflict between state codes and country codes, set the country
+	$pa->set("country","US");
+	$pa->set("default_state","CA",true);   //optional force default state code in case no state in addr
+	
+	$rtn_addr = $pa->parseAddress($addr);
+	//check for errors
+	if ($rtn_addr['errors']) { handle errors}	
+	if ($rtn_addr['warnings']) { handle warnings}	
+	if ($rtn_addr['info']) { handle informational msgs}	
+
+* This has only been test for limited US addresses.	
+* The city lookup requires the state be passed to the lookup routine. 
 * Code for mulit-word cities, like Los Angeles, was added.  The this is still a rough prototype
