@@ -18,17 +18,26 @@
  * Right now the function is dependent on a list of cities to validate that 
  * we are parsing properly.
  *
+ *@author Criss Swaim, The Pineridge Group, LLC
+ *@website www.tpginc.net
+ *@date 11/02/2011
+ *
+ *@desc  Updated this fork of the class to parse multi-word cities and 
+ * corrected some lookups routines. The useage of the class has changed as indicated 
+ * below
+ *
  * Usage:
  * 		$pa = new ParseAddress;
- *      // because of conflict between state codes and country codes, set the country
+ *      // because of conflict between state codes and country codes, set the country if zip codes are missing
  *		$pa->set("country","US");
- *		$pa->set("default_state","CA",true);
+ *		$pa->set("default_state","CA",true);						//optional
+ *		$pa->set("default_country","US",true);                		//optional
  *
  *		$rtn_addr = $pa->parseAddress($addr);
  *
  *		if ($rtn_addr['errors']) { handle errors}	
  *		if ($rtn_addr['warnings']) { handle warnings}	
- *		if ($rtn_addr['conds']) { handle conditional}		
+ *		if ($rtn_addr['info']) { handle conditional}		
  * 
  */
 class ParseAddress extends ObjectBase
@@ -282,12 +291,12 @@ class ParseAddress extends ObjectBase
 		//set error messages
 		if ($this->errorMsgs) {
 			foreach ($this->errorMsgs as $key => $value) {
-				if ($key = "w") {
+				if ($value[0] == "w") {
 					$_warnings[] = $value[1];
-				} elseif ($key = "e") {
+				} elseif ($value[0] == "e") {
 					$_errors[] = $value[1];
 				} else {
-					$_info = $value[1];
+					$_info[] = $value[1];
 				}
 			}
 		}
@@ -298,7 +307,7 @@ class ParseAddress extends ObjectBase
 			$addr_arr["warnings"] = $_warnings;
 		}
 		if (!is_null($_info)) {
-			$addr_arr["info"] = $_conditional;
+			$addr_arr["info"] = $_info;
 		}
 		return $addr_arr;
 	}
@@ -488,7 +497,7 @@ class ParseAddress extends ObjectBase
 	 * 
 	 * @param string $part
 	 */
-	public function isCity( $string = null)
+	public function isCity( $string = null, &$parts=null)
 	{
 		//reasons to fail
 		if (is_null($string)) return false;
@@ -501,25 +510,26 @@ class ParseAddress extends ObjectBase
 		
 		if ( in_array($temp, $this->_cities[$this->state])) {
 			$key = array_search($temp, $this->_cities[$this->state]);
+			unset($parts[$key]);
 			return $string;
 		} else {
-			// if city_arr is set, then check for multi-word city name
+			// use parts array to check for multi-word city name
 			if ($this->_debug) {echo "<br>isCity chk for multi-word city ";}
-			if (!empty($this->city_arr)) {			
-				$key = array_search($temp, $this->city_arr);
+			if (!empty($parts)) {			
+				$key = array_search($temp, $parts);
 				if ($this->_debug) {echo "city loop: ".$key.'-'.$temp.'-';}
 				// loop through city arr, build city name and check it
 				for ($i=1;$i<$key;$i++) {
 					if ($this->_debug) {echo "<br>isCity chk for multi-word city ";}
-					$city_part = strtoupper(trim($this->city_arr[$key - $i]));
+					$city_part = strtoupper(trim($parts[$key - $i]));
 					$temp = $city_part." ".$temp;
 					//unset used parts of city
 					if ( in_array($temp, $this->_cities[$this->state])) {
 						$x=$key-$i;
 						for ($k=$x;$k<=$key;$k++) {
-							echo "<br>in isCity, unset city_arr ".$k;
-							unset($this->city_arr[$k]);
+							unset($parts[$k]);
 						}
+						$this->parseSet("city", $temp);
 						return $temp;
 					}
 				}
@@ -560,7 +570,7 @@ class ParseAddress extends ObjectBase
 				$this->errorMsgs[] = array("e","county not found - default country not set ");
 			} else {
 				$this->country = $this->default_country;
-				$this->errorMsgs[] = array("w","country not found - using default ".$this->default_country);
+				$this->errorMsgs[] = array("i","country not found - using default ".$this->default_country);
 			}
 		}
 		
@@ -660,7 +670,7 @@ class ParseAddress extends ObjectBase
 				$this->errorMsgs[] = array("e","state not found - default state not set ");
 			} else {
 				$this->state = $this->default_state;
-				$this->errorMsgs[] = array("w","state not found - using default ".$this->default_state);
+				$this->errorMsgs[] = array("i","state not found - using default ".$this->default_state);
 			}
 		}
 		
@@ -910,9 +920,6 @@ class ParseAddress extends ObjectBase
 		$parts = explode(" ", $string);
 		$leftovers = "";
 		$max_size = sizeof($parts)-1;
-		echo"<br />parts:<pre>";
-		print_r($parts);
-		echo "</pre>";
 		
 		//reasons to return
 		if (!isset($parts[1])) return false;
@@ -920,10 +927,7 @@ class ParseAddress extends ObjectBase
 		//we're reversing the array and disecting it backwords
 		foreach (array_reverse($parts, true) as   $key => $part)
 		{
-			echo"<br />loop parts:<pre>";
-			print_r($parts);
-			echo "</pre>";
-			
+						
 			if ($this->_debug) {echo "<br>parsing: ".$key.' - '.$part.'  ('.$max_size.')';}
 			
 			//COUNTRY
@@ -961,14 +965,19 @@ class ParseAddress extends ObjectBase
 			
 			//CITY
 			//load parts to city array for multi-word city names
-			$this->city_arr = $parts;
-			if (is_null($this->city)){
-				$_citynm = $this->isCity( $part, $this->state); 
+			//isCity will unset the part.  If a multi-word city is found, multiple parts are unset
+			if (is_null($this->city)
+				&& $this->isCity($part, $parts)) {
+				continue;
+			}
+			/*
+			{
+				$_citynm = $this->isCity( $part, $parts); 
 				if ($_citynm) {
 					$this->parseSet("city", $_citynm);
 			
 					if ($this->_debug) {echo "<br>unsetting city - ".$_citynm.'-'.$part.'-'.$this->city;}
-					// if single word city, unset part, if multi word city, use city_arr
+					 if single word city, unset part, if multi word city, use city_arr
 					if ($part == $this->city) {
 						echo "<br>**unset parts-key";
 						unset($parts[$key]);
@@ -979,13 +988,8 @@ class ParseAddress extends ObjectBase
 					}
 					continue;
 				}
-				
-			}
-			echo "<br>";
-			print_r($parts);
-			echo "<br>leftover part: ".$part;
-			//any remains in reverse order
-			//$leftovers = $part." ".$leftovers;
+			*/	
+			
 		}
 		
 		reset($parts);
@@ -1120,22 +1124,20 @@ class ParseAddress extends ObjectBase
 	 */
 	protected function parseSet( $property = null, $value = null )
 	{
-		if ($property == "city"){echo "<br>parseSet city";}
 		//reasons to return
 		if ( is_null($property) ) return false;
 		if ( is_null($value) ) return false;
 		
-		if ($property == "city"){echo "<br>clean city";}
 		//initializing variables
 		$method = str_replace("_", " ", strtolower($property));
 		$method = "is".str_replace(" ", "", ucwords($method));
-		if ($property == "city"){echo "<br>clean city - method is ".$method;}
+		
 		//RETURN if it's already set
 		if ($this->fireMethod( $method, $this->$property )) return false;
-		if ($property == "city"){echo "<br>not set city-".$value;}
+
 		//SET IT
 		if (!$this->set( $property, $value )) return false;
-		if ($property == "city"){echo "<br>set city-".$value;}
+
 		return true;
 	}
 	
