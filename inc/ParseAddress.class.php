@@ -970,26 +970,6 @@ class ParseAddress extends ObjectBase
 				&& $this->isCity($part, $parts)) {
 				continue;
 			}
-			/*
-			{
-				$_citynm = $this->isCity( $part, $parts); 
-				if ($_citynm) {
-					$this->parseSet("city", $_citynm);
-			
-					if ($this->_debug) {echo "<br>unsetting city - ".$_citynm.'-'.$part.'-'.$this->city;}
-					 if single word city, unset part, if multi word city, use city_arr
-					if ($part == $this->city) {
-						echo "<br>**unset parts-key";
-						unset($parts[$key]);
-					} else {
-						echo "<br>**reset parts"; print_r($this->city_arr);
-						$parts = $this->city_arr;
-						reset($parts);
-					}
-					continue;
-				}
-			*/	
-			
 		}
 		
 		reset($parts);
