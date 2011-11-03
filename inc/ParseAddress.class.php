@@ -19,8 +19,8 @@
  * we are parsing properly.
  *
  *@author Criss Swaim, The Pineridge Group, LLC
- *@website www.tpginc.net
- *@date 11/02/2011
+ *@link http://www.tpginc.net
+ *@since 11/02/2011
  *
  *@desc  Updated this fork of the class to parse multi-word cities and 
  * corrected some lookups routines. The useage of the class has changed as indicated 
